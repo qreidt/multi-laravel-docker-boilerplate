@@ -1,0 +1,78 @@
+# For more information: https://laravel.com/docs/sail
+version: '3'
+services:
+    nginx:
+        image: nginx:latest
+        container_name: moneo_nginx
+        ports:
+            - '80:80'
+            - '443:443'
+        volumes:
+            - ./docker/nginx:/etc/nginx/conf.d
+        depends_on:
+            - api
+             - client
+        links:
+            - api
+             - client
+        networks:
+            - moneo
+    api:
+        container_name: moneo_api
+        build:
+            context: ./docker/
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: sail-8.0/app
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - moneo
+        depends_on:
+            - mariadb
+            - redis
+    mariadb:
+        image: 'mariadb:latest'
+        container_name: moneo_database
+        ports:
+            - '${FORWARD_DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        volumes:
+            - 'sailmariadb:/var/lib/mysql'
+        networks:
+            - moneo
+        healthcheck:
+            test: [ "CMD", "mysqladmin", "ping", "-p${DB_PASSWORD}" ]
+            retries: 3
+            timeout: 5s
+    redis:
+        image: 'redis:alpine'
+        container_name: moneo_redis
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        volumes:
+            - 'sailredis:/data'
+        networks:
+            - moneo
+        healthcheck:
+            test: [ "CMD", "redis-cli", "ping" ]
+            retries: 3
+            timeout: 5s
+networks:
+    moneo:
+        name: moneo
+        driver: bridge
+volumes:
+    sailmariadb:
+        driver: local
+    sailredis:
+        driver: local
